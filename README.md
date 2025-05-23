@@ -1,5 +1,7 @@
 # Sanity MCP Server <!-- omit in toc -->
 
+[![smithery badge](https://smithery.ai/badge/@robawolf/sanity-mcp-server)](https://smithery.ai/server/@robawolf/sanity-mcp-server)
+
 > Transform your content operations with AI-powered tools for Sanity. Create, manage, and explore your content through natural language conversations in your favorite AI-enabled editor.
 
 Sanity MCP Server implements the [Model Context Protocol](https://modelcontextprotocol.ai) to connect your Sanity projects with AI tools like Claude, Cursor, and VS Code. It enables AI models to understand your content structure and perform operations through natural language instructions.
@@ -29,6 +31,14 @@ Sanity MCP Server implements the [Model Context Protocol](https://modelcontextpr
   - [Debugging](#debugging)
 
 ## 🔌 Quickstart
+
+### Installing via Smithery
+
+To install sanity-mcp-server for Claude Desktop automatically via [Smithery](https://smithery.ai/server/@robawolf/sanity-mcp-server):
+
+```bash
+npx -y @smithery/cli install @robawolf/sanity-mcp-server --client claude
+```
 
 ### Prerequisites
 
