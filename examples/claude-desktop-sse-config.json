@@ -1,0 +1,16 @@
+{
+  "mcpServers": {
+    "sanity-sse": {
+      "transport": {
+        "type": "sse",
+        "url": "http://127.0.0.1:3000/sse"
+      },
+      "env": {
+        "SANITY_PROJECT_ID": "your-sanity-project-id",
+        "SANITY_DATASET": "production",
+        "SANITY_API_TOKEN": "your-sanity-api-token",
+        "MCP_USER_ROLE": "developer"
+      }
+    }
+  }
+} 

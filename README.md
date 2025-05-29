@@ -75,6 +75,7 @@ This MCP server can be used with any application that supports the Model Context
 
 To use the Sanity MCP server, add the following configuration to your application's MCP settings:
 
+**For stdio transport (default):**
 ```json
 {
   "mcpServers": {
@@ -92,6 +93,31 @@ To use the Sanity MCP server, add the following configuration to your applicatio
 }
 ```
 
+**For SSE transport (Server-Sent Events):**
+```json
+{
+  "mcpServers": {
+    "sanity": {
+      "transport": {
+        "type": "sse",
+        "url": "http://127.0.0.1:3000/sse"
+      },
+      "env": {
+        "SANITY_PROJECT_ID": "your-project-id",
+        "SANITY_DATASET": "production",
+        "SANITY_API_TOKEN": "your-sanity-api-token",
+        "MCP_USER_ROLE": "developer"
+      }
+    }
+  }
+}
+```
+
+> **Note:** When using SSE transport, you need to start the server separately:
+> ```bash
+> npx @sanity/mcp-server@latest --transport=sse --port=3000
+> ```
+
 For a complete list of all required and optional environment variables, see the [Configuration section](#️-configuration).
 
 The exact location of this configuration will depend on your application:
@@ -104,6 +130,48 @@ The exact location of this configuration will depend on your application:
 | Custom Apps    | Refer to your app's MCP integration docs          |
 
 You don't get it to work? See the section on [Node.js configuration](#-nodejs-environment-setup).
+
+## 🌐 Transport Options
+
+The Sanity MCP server supports two transport mechanisms:
+
+### **stdio Transport (Default)**
+- **Use case**: Local integrations, command-line tools, AI assistants
+- **Pros**: Simple setup, automatic process management
+- **Cons**: Limited to local processes
+
+```bash
+# Run with stdio (default)
+npm start
+
+# Or explicitly
+node build/index.js --transport=stdio
+```
+
+### **SSE Transport (Server-Sent Events)**
+- **Use case**: Web applications, remote connections, real-time streaming
+- **Pros**: HTTP-based, supports remote connections, real-time updates
+- **Cons**: Requires separate server process
+
+```bash
+# Run with SSE transport
+npm run start:sse
+
+# Or with custom port
+npm run start:sse:port
+node build/index.js --transport=sse --port=3000
+```
+
+**SSE Endpoints:**
+- **SSE Stream**: `GET http://127.0.0.1:3000/sse` - Establishes streaming connection
+- **Messages**: `POST http://127.0.0.1:3000/messages` - Send messages to server
+- **Health Check**: `GET http://127.0.0.1:3000/health` - Server status
+
+**Security Features:**
+- Origin validation to prevent DNS rebinding attacks
+- Localhost binding (127.0.0.1) for security
+- CORS support for web applications
+- 4MB message size limit
 
 ## 🛠️ Available Tools
 
