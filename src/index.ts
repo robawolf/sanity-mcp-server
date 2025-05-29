@@ -3,7 +3,6 @@ import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js'
 import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js'
 import {SSEServerTransport} from '@modelcontextprotocol/sdk/server/sse.js'
 import express from 'express'
-import crypto from 'crypto'
 import {registerAllPrompts} from './prompts/register.js'
 import {registerAllResources} from './resources/register.js'
 import {registerAllTools} from './tools/register.js'
@@ -44,9 +43,7 @@ async function startSSEServer(port: number = 3000) {
   app.use(express.json({ limit: '4mb' }))
 
   const server = await initializeServer()
-  
-  // Store multiple transports by session ID
-  const transports = new Map<string, SSEServerTransport>()
+  let transport: SSEServerTransport | null = null
 
   // SSE endpoint for establishing streaming connection
   app.get('/sse', (req, res) => {
@@ -61,18 +58,15 @@ async function startSSEServer(port: number = 3000) {
     }
 
     try {
-      // Generate unique session ID
-      const sessionId = crypto.randomUUID()
-      console.log(`New SSE connection established with session ID: ${sessionId}`)
+      console.log('New SSE connection established')
       
-      // Create new transport for this session
-      const transport = new SSEServerTransport(`/messages?sessionId=${sessionId}`, res)
-      transports.set(sessionId, transport)
+      // Create new transport (replaces any existing one - single client model)
+      transport = new SSEServerTransport('/messages', res)
       
       // Clean up transport when connection closes
       res.on('close', () => {
-        console.log(`SSE connection closed for session: ${sessionId}`)
-        transports.delete(sessionId)
+        console.log('SSE connection closed')
+        transport = null
       })
       
       // Connect server to this transport
@@ -85,23 +79,15 @@ async function startSSEServer(port: number = 3000) {
 
   // Message endpoint for receiving client messages
   app.post('/messages', (req, res) => {
-    try {
-      const sessionId = req.query.sessionId as string
-      
-      if (!sessionId) {
-        return res.status(400).json({ error: 'Missing sessionId parameter' })
+    if (transport) {
+      try {
+        transport.handlePostMessage(req, res)
+      } catch (error) {
+        console.error('Error handling message:', error)
+        res.status(500).json({ error: 'Internal server error' })
       }
-      
-      const transport = transports.get(sessionId)
-      if (!transport) {
-        return res.status(400).json({ error: 'No SSE connection found for session ID' })
-      }
-      
-      // Handle the message with the correct transport
-      transport.handlePostMessage(req, res)
-    } catch (error) {
-      console.error('Error handling message:', error)
-      res.status(500).json({ error: 'Internal server error' })
+    } else {
+      res.status(400).json({ error: 'No active SSE connection' })
     }
   })
 
@@ -112,7 +98,7 @@ async function startSSEServer(port: number = 3000) {
       server: MCP_SERVER_NAME, 
       version: VERSION,
       transport: 'sse',
-      activeConnections: transports.size
+      connected: transport !== null
     })
   })
 
