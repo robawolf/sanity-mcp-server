@@ -41,10 +41,12 @@ class SanityMCPClient {
       // Connect to the server
       await this.client.connect(this.transport);
       console.log('✅ Connected to Sanity MCP Server via SSE!');
+      console.log('🔗 Session-based connection established with unique session ID');
 
       return true;
     } catch (error) {
       console.error('❌ Failed to connect:', error.message);
+      console.error('💡 Make sure the server is running and accessible at:', this.serverUrl);
       return false;
     }
   }

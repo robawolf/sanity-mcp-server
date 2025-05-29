@@ -153,9 +153,43 @@ Expected response:
   "server": "@sanity/mcp",
   "version": "0.9.3",
   "transport": "sse",
-  "connected": false
+  "activeConnections": 0
 }
 ```
+
+### SSE Connection Issues
+
+**Error:** `Failed to connect via SSE: Error POSTing to endpoint (HTTP 400): InternalServerError: stream is not readable`
+
+**Solution:** This was a concurrency issue with multiple SSE connections. The latest version (0.9.3+) fixes this by implementing session-based connection management.
+
+**Verify the fix:**
+1. Check health endpoint shows `activeConnections` count
+2. Each SSE connection gets a unique session ID in logs
+3. Multiple concurrent connections are supported
+
+**Error:** `Missing sessionId parameter` or `No SSE connection found for session ID`
+
+**Cause:** Client is not using the session ID provided by the SSE endpoint
+
+**Solution:** 
+1. Ensure your MCP client follows the SSE protocol correctly
+2. The SSE endpoint provides the message endpoint URL with session ID
+3. Client must use that exact URL for POST requests
+
+### Testing SSE Connection
+
+Test the SSE endpoint manually:
+```bash
+# Start SSE connection
+curl -N https://your-service-name.railway.app/sse
+
+# You should see:
+# event: endpoint
+# data: /messages?sessionId=<unique-id>
+```
+
+Then use the provided endpoint URL for sending messages.
 
 ## 🔒 Security Notes
 
