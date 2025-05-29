@@ -173,6 +173,26 @@ node build/index.js --transport=sse --port=3000
 - CORS support for web applications
 - 4MB message size limit
 
+## 🚂 Railway Deployment
+
+The Sanity MCP Server can be deployed to Railway for remote access via SSE transport.
+
+**Quick Setup:**
+1. Set required environment variables in Railway:
+   - `MCP_USER_ROLE=developer`
+   - `SANITY_PROJECT_ID=your-project-id`
+   - `SANITY_DATASET=production`
+   - `SANITY_API_TOKEN=your-token`
+
+2. Deploy to Railway - the server automatically detects Railway environment and:
+   - ✅ Uses SSE transport by default
+   - ✅ Binds to all interfaces (0.0.0.0)
+   - ✅ Uses Railway's PORT environment variable
+
+3. Access your deployed server at `https://your-service.railway.app`
+
+**📋 For detailed Railway deployment instructions, see [RAILWAY_DEPLOYMENT.md](./RAILWAY_DEPLOYMENT.md)**
+
 ## 🛠️ Available Tools
 
 ### Context & Setup <!-- omit in toc -->

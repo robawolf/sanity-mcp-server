@@ -47,9 +47,11 @@ async function startSSEServer(port: number = 3000) {
 
   // SSE endpoint for establishing streaming connection
   app.get('/sse', (req, res) => {
-    // Validate Origin header to prevent DNS rebinding attacks
+    // Validate Origin header to prevent DNS rebinding attacks (skip in Railway deployment)
     const origin = req.headers.origin
-    if (origin && !['http://localhost:3000', 'http://127.0.0.1:3000'].includes(origin)) {
+    const isLocalDev = !process.env.PORT && !process.env.RAILWAY_ENVIRONMENT
+    
+    if (isLocalDev && origin && !['http://localhost:3000', 'http://127.0.0.1:3000'].includes(origin)) {
       console.warn(`Rejected SSE connection from unauthorized origin: ${origin}`)
       res.status(403).send('Forbidden')
       return
@@ -80,12 +82,13 @@ async function startSSEServer(port: number = 3000) {
     })
   })
 
-  // Bind only to localhost for security
-  app.listen(port, '127.0.0.1', () => {
-    console.error(`Sanity MCP Server running on http://127.0.0.1:${port}`)
-    console.error(`SSE endpoint: http://127.0.0.1:${port}/sse`)
-    console.error(`Messages endpoint: http://127.0.0.1:${port}/messages`)
-    console.error(`Health check: http://127.0.0.1:${port}/health`)
+  // Bind to appropriate interface based on environment
+  const host = process.env.PORT || process.env.RAILWAY_ENVIRONMENT ? '0.0.0.0' : '127.0.0.1'
+  app.listen(port, host, () => {
+    console.error(`Sanity MCP Server running on http://${host}:${port}`)
+    console.error(`SSE endpoint: http://${host}:${port}/sse`)
+    console.error(`Messages endpoint: http://${host}:${port}/messages`)
+    console.error(`Health check: http://${host}:${port}/health`)
   })
 }
 
@@ -99,9 +102,10 @@ async function startStdioServer() {
 async function main() {
   try {
     const args = process.argv.slice(2)
-    const transportType = args.find(arg => arg.startsWith('--transport='))?.split('=')[1] || 'stdio'
+    const transportType = args.find(arg => arg.startsWith('--transport='))?.split('=')[1] || 
+                         (process.env.RAILWAY_ENVIRONMENT || process.env.PORT ? 'sse' : 'stdio')
     const portArg = args.find(arg => arg.startsWith('--port='))?.split('=')[1]
-    const port = portArg ? parseInt(portArg, 10) : 3000
+    const port = portArg ? parseInt(portArg, 10) : (process.env.PORT ? parseInt(process.env.PORT, 10) : 3000)
 
     if (transportType === 'sse') {
       await startSSEServer(port)
