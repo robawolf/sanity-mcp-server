@@ -42,11 +42,17 @@ async function startSSEServer(port: number = 3000) {
 
   app.use(express.json({ limit: '4mb' }))
 
-  const server = await initializeServer()
-  let transport: SSEServerTransport | null = null
+  // Map to store transport instances and their associated servers
+  const connections = new Map<string, { transport: SSEServerTransport; server: McpServer }>()
 
   // SSE endpoint for establishing streaming connection
-  app.get('/sse', (req, res) => {
+  app.get('/sse', async (req, res) => {
+    console.log('SSE connection request received', {
+      headers: req.headers,
+      url: req.url,
+      method: req.method
+    })
+    
     // Validate Origin header to prevent DNS rebinding attacks (skip in Railway deployment)
     const origin = req.headers.origin
     const isLocalDev = !process.env.PORT && !process.env.RAILWAY_ENVIRONMENT
@@ -58,19 +64,37 @@ async function startSSEServer(port: number = 3000) {
     }
 
     try {
-      console.log('New SSE connection established')
+      console.log('Creating new SSE connection...')
       
-      // Create new transport (replaces any existing one - single client model)
-      transport = new SSEServerTransport('/messages', res)
+      // Create a new server instance for this connection
+      const server = await initializeServer()
       
-      // Clean up transport when connection closes
+      // Create transport with unique session handling
+      const transport = new SSEServerTransport('/messages', res)
+      
+      // Store connection info before connecting
+      // The transport will generate its own session ID
+      const connectionId = Math.random().toString(36).substring(7)
+      
+      // Clean up when connection closes
       res.on('close', () => {
-        console.log('SSE connection closed')
-        transport = null
+        console.log(`SSE connection closed for ${connectionId}`)
+        connections.delete(connectionId)
       })
       
-      // Connect server to this transport
-      server.connect(transport)
+      res.on('error', (error) => {
+        console.error(`SSE response error for ${connectionId}:`, error)
+        connections.delete(connectionId)
+      })
+      
+      // Connect server to transport
+      console.log(`Connecting server to transport for ${connectionId}...`)
+      await server.connect(transport)
+      
+      // Store after successful connection
+      connections.set(connectionId, { transport, server })
+      
+      console.log(`SSE connection established: ${connectionId} (${connections.size} active connections)`)
     } catch (error) {
       console.error('Error establishing SSE connection:', error)
       res.status(500).send('Internal Server Error')
@@ -78,16 +102,40 @@ async function startSSEServer(port: number = 3000) {
   })
 
   // Message endpoint for receiving client messages
-  app.post('/messages', (req, res) => {
-    if (transport) {
+  app.post('/messages', async (req, res) => {
+    const sessionId = req.query.sessionId as string
+    
+    console.log(`POST /messages request with sessionId: ${sessionId}`)
+    
+    if (!sessionId) {
+      console.error('Missing sessionId parameter')
+      return res.status(400).json({ error: 'Missing sessionId parameter' })
+    }
+    
+    // Find the connection that can handle this session
+    let handled = false
+    let lastError: any = null
+    
+    console.log(`Searching among ${connections.size} active connections`)
+    
+    for (const [connId, connection] of connections) {
       try {
-        transport.handlePostMessage(req, res)
+        // Try to handle with this transport
+        // The transport will validate if this is its session
+        await connection.transport.handlePostMessage(req, res)
+        handled = true
+        console.log(`Message handled by connection ${connId}`)
+        break
       } catch (error) {
-        console.error('Error handling message:', error)
-        res.status(500).json({ error: 'Internal server error' })
+        // This transport couldn't handle it, try the next one
+        lastError = error
+        continue
       }
-    } else {
-      res.status(400).json({ error: 'No active SSE connection' })
+    }
+    
+    if (!handled) {
+      console.error(`No transport found for session ${sessionId}. Last error:`, lastError)
+      res.status(400).json({ error: 'Invalid session or connection closed' })
     }
   })
 
@@ -98,7 +146,7 @@ async function startSSEServer(port: number = 3000) {
       server: MCP_SERVER_NAME, 
       version: VERSION,
       transport: 'sse',
-      connected: transport !== null
+      activeConnections: connections.size
     })
   })
 
