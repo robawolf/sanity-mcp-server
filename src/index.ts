@@ -42,100 +42,88 @@ async function startSSEServer(port: number = 3000) {
 
   app.use(express.json({ limit: '4mb' }))
 
-  // Map to store transport instances and their associated servers
-  const connections = new Map<string, { transport: SSEServerTransport; server: McpServer }>()
+  // Initialize server once
+  const server = await initializeServer()
+  
+  // Store the SSE transport when created
+  const transports = new Map<string, SSEServerTransport>()
 
   // SSE endpoint for establishing streaming connection
   app.get('/sse', async (req, res) => {
-    console.log('SSE connection request received', {
-      headers: req.headers,
-      url: req.url,
-      method: req.method
-    })
+    console.log('SSE connection request received')
     
-    // Validate Origin header to prevent DNS rebinding attacks (skip in Railway deployment)
-    const origin = req.headers.origin
-    const isLocalDev = !process.env.PORT && !process.env.RAILWAY_ENVIRONMENT
-    
-    if (isLocalDev && origin && !['http://localhost:3000', 'http://127.0.0.1:3000'].includes(origin)) {
-      console.warn(`Rejected SSE connection from unauthorized origin: ${origin}`)
-      res.status(403).send('Forbidden')
-      return
-    }
-
     try {
-      console.log('Creating new SSE connection...')
-      
-      // Create a new server instance for this connection
-      const server = await initializeServer()
-      
-      // Create transport with unique session handling
+      // Create transport - it will set its own SSE headers
       const transport = new SSEServerTransport('/messages', res)
       
-      // Store connection info before connecting
-      // The transport will generate its own session ID
-      const connectionId = Math.random().toString(36).substring(7)
+      // Generate a session ID for tracking
+      const sessionId = Math.random().toString(36).substring(7)
+      console.log(`Creating SSE transport with tracking ID: ${sessionId}`)
       
-      // Clean up when connection closes
-      res.on('close', () => {
-        console.log(`SSE connection closed for ${connectionId}`)
-        connections.delete(connectionId)
+      // Store transport
+      transports.set(sessionId, transport)
+      
+      // Handle connection close
+      req.on('close', () => {
+        console.log(`SSE connection closed: ${sessionId}`)
+        transports.delete(sessionId)
       })
       
-      res.on('error', (error) => {
-        console.error(`SSE response error for ${connectionId}:`, error)
-        connections.delete(connectionId)
-      })
-      
-      // Connect server to transport
-      console.log(`Connecting server to transport for ${connectionId}...`)
+      // Connect the transport to the server
       await server.connect(transport)
+      console.log(`SSE connection established: ${sessionId}`)
       
-      // Store after successful connection
-      connections.set(connectionId, { transport, server })
-      
-      console.log(`SSE connection established: ${connectionId} (${connections.size} active connections)`)
     } catch (error) {
       console.error('Error establishing SSE connection:', error)
-      res.status(500).send('Internal Server Error')
+      if (!res.headersSent) {
+        res.status(500).end()
+      }
     }
   })
 
   // Message endpoint for receiving client messages
   app.post('/messages', async (req, res) => {
-    const sessionId = req.query.sessionId as string
-    
-    console.log(`POST /messages request with sessionId: ${sessionId}`)
-    
-    if (!sessionId) {
-      console.error('Missing sessionId parameter')
-      return res.status(400).json({ error: 'Missing sessionId parameter' })
-    }
-    
-    // Find the connection that can handle this session
-    let handled = false
-    let lastError: any = null
-    
-    console.log(`Searching among ${connections.size} active connections`)
-    
-    for (const [connId, connection] of connections) {
-      try {
-        // Try to handle with this transport
-        // The transport will validate if this is its session
-        await connection.transport.handlePostMessage(req, res)
-        handled = true
-        console.log(`Message handled by connection ${connId}`)
-        break
-      } catch (error) {
-        // This transport couldn't handle it, try the next one
-        lastError = error
-        continue
+    try {
+      const sessionId = req.query.sessionId as string
+      console.log(`Received POST /messages with sessionId: ${sessionId}`)
+      
+      // Try each transport until one handles it successfully
+      let handled = false
+      let lastError: any = null
+      
+      for (const [id, transport] of transports) {
+        try {
+          await transport.handlePostMessage(req, res)
+          handled = true
+          console.log(`Message handled by transport ${id}`)
+          return // Important: return immediately after successful handling
+        } catch (error: any) {
+          // If error message includes "session", it's not for this transport
+          if (error?.message?.includes('session')) {
+            continue
+          }
+          lastError = error
+          console.error(`Transport ${id} error:`, error?.message)
+        }
       }
-    }
-    
-    if (!handled) {
-      console.error(`No transport found for session ${sessionId}. Last error:`, lastError)
-      res.status(400).json({ error: 'Invalid session or connection closed' })
+      
+      if (!handled) {
+        console.error('No transport could handle the message. Last error:', lastError?.message)
+        if (!res.headersSent) {
+          res.status(400).json({ 
+            error: 'No active SSE connection for this session',
+            details: lastError?.message 
+          })
+        }
+      }
+    } catch (error: any) {
+      console.error('Error in /messages handler:', error)
+      if (!res.headersSent) {
+        res.status(500).json({ 
+          error: 'Internal server error',
+          details: error?.message 
+        })
+      }
     }
   })
 
@@ -146,17 +134,21 @@ async function startSSEServer(port: number = 3000) {
       server: MCP_SERVER_NAME, 
       version: VERSION,
       transport: 'sse',
-      activeConnections: connections.size
+      activeConnections: transports.size,
+      environment: process.env.RAILWAY_ENVIRONMENT ? 'railway' : 'local'
     })
   })
 
   // Bind to appropriate interface based on environment
   const host = process.env.PORT || process.env.RAILWAY_ENVIRONMENT ? '0.0.0.0' : '127.0.0.1'
   app.listen(port, host, () => {
-    console.error(`Sanity MCP Server running on http://${host}:${port}`)
-    console.error(`SSE endpoint: http://${host}:${port}/sse`)
-    console.error(`Messages endpoint: http://${host}:${port}/messages`)
-    console.error(`Health check: http://${host}:${port}/health`)
+    console.log(`Sanity MCP Server (SSE mode) started`)
+    console.log(`Host: ${host}:${port}`)
+    console.log(`Environment: ${process.env.RAILWAY_ENVIRONMENT ? 'Railway' : 'Local'}`)
+    console.log(`Endpoints:`)
+    console.log(`  - SSE: http://${host}:${port}/sse`)
+    console.log(`  - Messages: http://${host}:${port}/messages`)
+    console.log(`  - Health: http://${host}:${port}/health`)
   })
 }
 
