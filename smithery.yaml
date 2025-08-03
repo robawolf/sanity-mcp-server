@@ -1,0 +1,55 @@
+# Smithery configuration file: https://smithery.ai/docs/build/project-config
+
+startCommand:
+  type: stdio
+  commandFunction:
+    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.
+    |-
+    (config) => ({
+      command: 'node',
+      args: ['build/index.js'],
+      env: {
+        SANITY_API_TOKEN: config.sanityApiToken,
+        SANITY_PROJECT_ID: config.sanityProjectId,
+        SANITY_DATASET: config.sanityDataset,
+        MCP_USER_ROLE: config.mcpUserRole,
+        SANITY_API_HOST: config.sanityApiHost,
+        MAX_TOOL_TOKEN_OUTPUT: config.maxToolTokenOutput?.toString(),
+      }
+    })
+  configSchema:
+    # JSON Schema defining the configuration options for the MCP.
+    type: object
+    required:
+      - sanityApiToken
+      - sanityProjectId
+      - sanityDataset
+      - mcpUserRole
+    properties:
+      sanityApiToken:
+        type: string
+        description: Your Sanity API token
+      sanityProjectId:
+        type: string
+        description: Your Sanity project ID
+      sanityDataset:
+        type: string
+        description: The dataset to use
+      mcpUserRole:
+        type: string
+        description: Tool access level (developer or editor)
+      sanityApiHost:
+        type: string
+        default: https://api.sanity.io
+        description: API host
+      maxToolTokenOutput:
+        type: number
+        default: 50000
+        description: Maximum token output for tool responses
+  exampleConfig:
+    sanityApiToken: abcdefghijklmnopqrstuvwxyz123456
+    sanityProjectId: myProjectId
+    sanityDataset: production
+    mcpUserRole: developer
+    sanityApiHost: https://api.sanity.io
+    maxToolTokenOutput: 50000
