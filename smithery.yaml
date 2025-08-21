@@ -6,7 +6,6 @@ spec:
   build:
     dockerfile: Dockerfile
     context: .
-    target: production
   
   environments:
     - name: production
@@ -28,10 +27,6 @@ spec:
         - SANITY_PROJECT_ID
         - SANITY_DATASET
         - MCP_USER_ROLE
-
-  ports:
-    - containerPort: 3000
-      protocol: TCP
 
   healthcheck:
     enabled: false  # MCP servers use stdio, not HTTP
