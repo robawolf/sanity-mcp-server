@@ -1,19 +1,20 @@
-FROM ubuntu:22.04
-
-# Install Node.js and pnpm
-RUN apt-get update && apt-get install -y curl && \
-    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
-    apt-get install -y nodejs && \
-    npm install -g pnpm && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
+FROM node:18-slim
 
 WORKDIR /app
 
-COPY package*.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile
+# Copy package files
+COPY package*.json ./
 
+# Install all dependencies (including dev for build)
+RUN npm install
+
+# Copy source code
 COPY . .
-RUN pnpm run build
-RUN pnpm prune --prod
+
+# Build the application
+RUN npm run build
+
+# Remove dev dependencies to reduce image size
+RUN npm prune --production
 
 CMD ["node", "build/index.js"]
