@@ -1,23 +1,18 @@
-FROM node:18-alpine
+FROM ubuntu:22.04
+
+# Install Node.js
+RUN apt-get update && apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_18.x | bash - && \
+    apt-get install -y nodejs && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Copy package files and install all dependencies
 COPY package*.json ./
 RUN npm install
 
-# Copy source and build
 COPY . .
 RUN npm run build
-
-# Remove dev dependencies
 RUN npm prune --production
-
-# Create user and set permissions
-RUN addgroup -g 1001 -S nodejs && \
-    adduser -S mcp -u 1001 && \
-    chown -R mcp:nodejs /app
-
-USER mcp
 
 CMD ["node", "build/index.js"]
