@@ -1,52 +1,23 @@
-# Use official Node.js runtime as base image
-FROM node:20-alpine AS builder
+FROM node:18-alpine
 
-# Install build dependencies
-RUN apk add --no-cache python3 make g++
-
-# Set working directory
 WORKDIR /app
 
-# Copy package files first for better caching
+# Copy package files and install all dependencies
 COPY package*.json ./
+RUN npm install
 
-# Install dependencies with specific npm version and timeout settings
-RUN npm ci --ignore-scripts --timeout 300000
+# Copy source and build
+COPY . .
+RUN npm run build
 
-# Copy scripts and source code
-COPY scripts/ ./scripts/
-COPY src/ ./src/
-COPY tsconfig.json ./
+# Remove dev dependencies
+RUN npm prune --production
 
-# Generate version and build
-RUN npm run prebuild && npm run build
-
-# Production stage
-FROM node:20-alpine AS production
-
-# Set working directory
-WORKDIR /app
-
-# Copy package files
-COPY package*.json ./
-
-# Install only production dependencies with timeout
-RUN npm ci --only=production --ignore-scripts --timeout 300000 && \
-    npm cache clean --force
-
-# Copy built application from builder stage
-COPY --from=builder /app/build ./build
-
-# Create non-root user for security
+# Create user and set permissions
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S mcp -u 1001 && \
     chown -R mcp:nodejs /app
 
-# Switch to non-root user
 USER mcp
 
-# Set environment variables
-ENV NODE_ENV=production
-
-# Run the application
 CMD ["node", "build/index.js"]
