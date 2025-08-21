@@ -1,8 +1,6 @@
 #!/usr/bin/env node
 import {McpServer} from '@modelcontextprotocol/sdk/server/mcp.js'
 import {StdioServerTransport} from '@modelcontextprotocol/sdk/server/stdio.js'
-import {registerAllPrompts} from './prompts/register.js'
-import {registerAllResources} from './resources/register.js'
 import {registerAllTools} from './tools/register.js'
 import {env} from './config/env.js'
 import {VERSION} from './config/version.js'
@@ -16,8 +14,6 @@ async function initializeServer() {
   })
 
   registerAllTools(server, env.data?.MCP_USER_ROLE)
-  registerAllPrompts(server)
-  registerAllResources(server)
 
   return server
 }
