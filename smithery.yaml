@@ -1,0 +1,45 @@
+apiVersion: v1
+kind: Project
+metadata:
+  name: sanity-mcp-server
+spec:
+  build:
+    dockerfile: Dockerfile
+    context: .
+    target: production
+  
+  environments:
+    - name: production
+      variables:
+        NODE_ENV: production
+      secrets:
+        - SANITY_API_TOKEN
+        - SANITY_PROJECT_ID
+        - SANITY_DATASET
+        - MCP_USER_ROLE
+    
+    - name: development  
+      variables:
+        NODE_ENV: development
+        SANITY_API_HOST: https://api.sanity.io
+        MAX_TOOL_TOKEN_OUTPUT: "50000"
+      secrets:
+        - SANITY_API_TOKEN
+        - SANITY_PROJECT_ID
+        - SANITY_DATASET
+        - MCP_USER_ROLE
+
+  ports:
+    - containerPort: 3000
+      protocol: TCP
+
+  healthcheck:
+    enabled: false  # MCP servers use stdio, not HTTP
+
+  resources:
+    requests:
+      memory: "128Mi"
+      cpu: "100m"
+    limits:
+      memory: "512Mi"
+      cpu: "500m"
