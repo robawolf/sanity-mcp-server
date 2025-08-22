@@ -1,13 +1,11 @@
 version: 1
 name: sanity-mcp-wrapper
-description: Wrapper that runs the official @sanity/mcp-server via npm start
-build:
-  dockerfile: Dockerfile
-  context: .
+description: Wrapper that runs the official @sanity/mcp-server via npx (stdio)
 startCommand:
   type: stdio
-  command: npm
+  command: npx
   args:
-    - start
+    - -y
+    - @sanity/mcp-server@latest
 
 
